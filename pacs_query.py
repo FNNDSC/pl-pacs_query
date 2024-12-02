@@ -2,24 +2,61 @@
 
 from pathlib import Path
 from argparse import ArgumentParser, Namespace, ArgumentDefaultsHelpFormatter
-
+from pflog import pflog
+from loguru import logger
 from chris_plugin import chris_plugin, PathMapper
+import pfdcm
+import json
+import sys
+import pprint
 
+LOG = logger.debug
+
+logger_format = (
+    "<green>{time:YYYY-MM-DD HH:mm:ss}</green> │ "
+    "<level>{level: <5}</level> │ "
+    "<yellow>{name: >28}</yellow>::"
+    "<cyan>{function: <30}</cyan> @"
+    "<cyan>{line: <4}</cyan> ║ "
+    "<level>{message}</level>"
+)
+logger.remove()
+logger.add(sys.stderr, format=logger_format)
 __version__ = '1.0.0'
 
 DISPLAY_TITLE = r"""
-ChRIS Plugin Template Title
+       _                                                          
+      | |                                                         
+ _ __ | |______ _ __   __ _  ___ ___   __ _ _   _  ___ _ __ _   _ 
+| '_ \| |______| '_ \ / _` |/ __/ __| / _` | | | |/ _ \ '__| | | |
+| |_) | |      | |_) | (_| | (__\__ \| (_| | |_| |  __/ |  | |_| |
+| .__/|_|      | .__/ \__,_|\___|___/ \__, |\__,_|\___|_|   \__, |
+| |            | |                ______ | |                 __/ |
+|_|            |_|               |______||_|                |___/ 
 """
 
 
-parser = ArgumentParser(description='!!!CHANGE ME!!! An example ChRIS plugin which '
-                                    'counts the number of occurrences of a given '
-                                    'word in text files.',
+parser = ArgumentParser(description='A ChRIS plugin to query PACS using pfdcm',
                         formatter_class=ArgumentDefaultsHelpFormatter)
-parser.add_argument('-w', '--word', required=True, type=str,
-                    help='word to count')
-parser.add_argument('-p', '--pattern', default='**/*.txt', type=str,
-                    help='input file filter glob')
+
+parser.add_argument(
+    '--PACSurl',
+    default='',
+    type=str,
+    help='endpoint URL of pfdcm'
+)
+parser.add_argument(
+    '--PACSname',
+    default='MINICHRISORTHANC',
+    type=str,
+    help='name of the PACS'
+)
+parser.add_argument(
+    '--PACSdirective',
+    default='',
+    type=str,
+    help='directive to query the PACS'
+)
 parser.add_argument('-V', '--version', action='version',
                     version=f'%(prog)s {__version__}')
 
@@ -30,7 +67,7 @@ parser.add_argument('-V', '--version', action='version',
 # documentation: https://fnndsc.github.io/chris_plugin/chris_plugin.html#chris_plugin
 @chris_plugin(
     parser=parser,
-    title='My ChRIS plugin',
+    title='A ChRIS plugin to query a remote PACS',
     category='',                 # ref. https://chrisstore.co/plugins
     min_memory_limit='100Mi',    # supported units: Mi, Gi
     min_cpu_limit='1000m',       # millicores, e.g. "1000m" = 1 CPU core
@@ -48,22 +85,11 @@ def main(options: Namespace, inputdir: Path, outputdir: Path):
     """
 
     print(DISPLAY_TITLE)
+    directive = json.loads(options.PACSdirective)
 
-    # Typically it's easier to think of programs as operating on individual files
-    # rather than directories. The helper functions provided by a ``PathMapper``
-    # object make it easy to discover input files and write to output files inside
-    # the given paths.
-    #
-    # Refer to the documentation for more options, examples, and advanced uses e.g.
-    # adding a progress bar and parallelism.
-    mapper = PathMapper.file_mapper(inputdir, outputdir, glob=options.pattern, suffix='.count.txt')
-    for input_file, output_file in mapper:
-        # The code block below is a small and easy example of how to use a ``PathMapper``.
-        # It is recommended that you put your functionality in a helper function, so that
-        # it is more legible and can be unit tested.
-        data = input_file.read_text()
-        frequency = data.count(options.word)
-        output_file.write_text(str(frequency))
+    search_response = pfdcm.get_pfdcm_status(directive, options.PACSurl, options.PACSname)
+
+    LOG(pprint.pformat(search_response['pypx']['data']))
 
 
 if __name__ == '__main__':
