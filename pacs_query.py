@@ -9,6 +9,7 @@ import pfdcm
 import json
 import sys
 import pprint
+import os
 
 LOG = logger.debug
 
@@ -22,7 +23,7 @@ logger_format = (
 )
 logger.remove()
 logger.add(sys.stderr, format=logger_format)
-__version__ = '1.0.0'
+__version__ = '1.0.1'
 
 DISPLAY_TITLE = r"""
        _                                                          
@@ -90,6 +91,11 @@ def main(options: Namespace, inputdir: Path, outputdir: Path):
     search_response = pfdcm.get_pfdcm_status(directive, options.PACSurl, options.PACSname)
 
     LOG(pprint.pformat(search_response['pypx']['data']))
+    op_json_file_path  = os.path.join(options.outputdir,"search_results.json")
+    # Open a json writer, and use the json.dumps()
+    # function to dump data
+    with open(op_json_file_path, 'w', encoding='utf-8') as jsonf:
+        jsonf.write(json.dumps(search_response['pypx']['data'], indent=4))
 
 
 if __name__ == '__main__':
