@@ -62,3 +62,30 @@ def get_pfdcm_status(directive: dict, url: str, pacs_name: str):
         else: raise Exception(d_response['message'])
     except Exception as ex:
         LOG(ex)
+
+def autocomplete_directive(directive: dict, d_response: dict) -> (dict,int):
+    """
+    Autocomplete certain fields in the search directive using response
+    object from pfdcm
+    """
+    search_directive,partial_directive = ''#sanitize(directive)
+    file_count = 0
+
+    # get the count of all matching files inside PACS
+    # we will be using this count to verify file registration
+    # in CUBE
+    for l_series in d_response['pypx']['data']:
+        for series in l_series["series"]:
+
+            # iteratively check for all search fields and update the search record simultaneously
+            # with SeriesInstanceUID and StudyInstanceUID
+            for key in directive.keys():
+                if series.get(key) and directive[key].lower() in series[key]["value"].lower():
+                    partial_directive[key] = series[key]["value"]
+                    search_directive["SeriesInstanceUID"] = series["SeriesInstanceUID"]["value"]
+                    search_directive["StudyInstanceUID"] = series["StudyInstanceUID"]["value"]
+                else:
+                    continue
+            file_count += int(series["NumberOfSeriesRelatedInstances"]["value"])
+    # _.update(partial_directive)
+    return search_directive, file_count
