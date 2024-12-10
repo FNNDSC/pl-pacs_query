@@ -23,7 +23,7 @@ logger_format = (
 )
 logger.remove()
 logger.add(sys.stderr, format=logger_format)
-__version__ = '1.0.1'
+__version__ = '1.0.2'
 
 DISPLAY_TITLE = r"""
        _                                                          
@@ -85,17 +85,21 @@ def main(options: Namespace, inputdir: Path, outputdir: Path):
     :param outputdir: directory where to write output files
     """
 
-    print(DISPLAY_TITLE)
+    LOG(DISPLAY_TITLE)
     directive = json.loads(options.PACSdirective)
+    search_directive,_ = pfdcm.sanitize(directive)
 
-    search_response = pfdcm.get_pfdcm_status(directive, options.PACSurl, options.PACSname)
+    search_response = pfdcm.get_pfdcm_status(search_directive, options.PACSurl, options.PACSname)
+    generated_response, file_count = pfdcm.autocomplete_directive(directive, search_response)
 
-    LOG(pprint.pformat(search_response['pypx']['data']))
+    # LOG(pprint.pformat(search_response['pypx']['data']))
+    LOG(pprint.pformat(generated_response))
+    LOG(f"file count is : {file_count}")
     op_json_file_path  = os.path.join(options.outputdir,"search_results.json")
     # Open a json writer, and use the json.dumps()
     # function to dump data
     with open(op_json_file_path, 'w', encoding='utf-8') as jsonf:
-        jsonf.write(json.dumps(search_response['pypx']['data'], indent=4))
+        jsonf.write(json.dumps(generated_response, indent=4))
 
 
 if __name__ == '__main__':
