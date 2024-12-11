@@ -95,12 +95,12 @@ def autocomplete_directive(directive: dict, d_response: dict) -> (list,int):
 
             # iteratively check for all search fields and update the search record simultaneously
             # with SeriesInstanceUID and StudyInstanceUID
-            flag = False
+            flag = True
             for key in directive.keys():
                 if series.get(key) and directive[key].lower() in series[key]["value"].lower():
-                    flag = True
+                    flag = flag and True
                 else:
-                    flag = False
+                    flag = flag and False
             if flag:
                 for label in series:
                     ser[label] = series[label]["value"]
