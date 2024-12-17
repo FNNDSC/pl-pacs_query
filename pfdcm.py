@@ -18,6 +18,24 @@ logger_format = (
 logger.remove()
 logger.add(sys.stderr, format=logger_format)
 
+allowed_tags = [
+    "AccessionNumber",
+    "PatientID",
+    "PatientName",
+    "PatientBirthDate",
+    "PatientAge",
+    "PatientSex",
+    "StudyDate",
+    "StudyInstanceUID",
+    "Modality",
+    "ModalitiesInStudy",
+    "PerformedStationAETitle",
+    "NumberOfSeriesRelatedInstances",
+    "InstanceNumber",
+    "SeriesDate",
+    "SeriesInstanceUID",
+]
+
 def health_check(url: str):
     pfdcm_about_api = f'{url}about/'
     headers = {'Content-Type': 'application/json', 'accept': 'application/json'}
@@ -36,7 +54,7 @@ def sanitize(directive: dict) -> (dict, dict):
     partial_directive = []
     clone_directive = copy.deepcopy(directive)
     for key in directive.keys():
-        if "Name" in key or "Description" in key:
+        if not key in allowed_tags:
             partial_directive.append({key:clone_directive.pop(key)})
     return clone_directive, dict(ChainMap(*partial_directive))
 
