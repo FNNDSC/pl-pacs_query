@@ -87,7 +87,7 @@ def get_pfdcm_status(directive: dict, url: str, pacs_name: str):
     LOG(body)
 
     try:
-        response = requests.post(pfdcm_status_url, json=body, headers=headers)
+        response = requests.post(pfdcm_status_url, json=body, headers=headers, timeout=1000)
         d_response = json.loads(response.text)
         if d_response['status']: return d_response
         else: raise Exception(d_response['message'])
