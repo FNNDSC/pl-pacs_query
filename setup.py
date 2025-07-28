@@ -25,7 +25,7 @@ setup(
     author='FNNDSC',
     author_email='dev@babyMRI.org',
     url='https://github.com/FNNDSC/pl-pacs_q',
-    py_modules=['pacs_query','pfdcm'],
+    py_modules=['pacs_query','pfdcm', 'cube_pacs_api'],
     install_requires=['chris_plugin'],
     license='MIT',
     entry_points={

@@ -124,8 +124,6 @@ def autocomplete_directive(directive: dict, d_response: dict) -> (list,int):
                     ser[label] = series[label]["value"]
                 res.append(ser)
                 file_count += int(series["NumberOfSeriesRelatedInstances"]["value"])
-                # ser["SeriesInstanceUID"] = series["SeriesInstanceUID"]["value"]
-                # ser["StudyInstanceUID"] = series["StudyInstanceUID"]["value"]
             else:
                 continue
 

@@ -10,6 +10,8 @@ import json
 import sys
 import pprint
 import os
+import cube_pacs_api
+from datetime import datetime
 
 LOG = logger.debug
 
@@ -23,7 +25,7 @@ logger_format = (
 )
 logger.remove()
 logger.add(sys.stderr, format=logger_format)
-__version__ = '1.0.5'
+__version__ = '1.0.6'
 
 DISPLAY_TITLE = r"""
        _                                                          
@@ -58,6 +60,21 @@ parser.add_argument(
     type=str,
     help='directive to query the PACS'
 )
+parser.add_argument(
+    "--CUBEurl",
+    default="http://localhost:8000/",
+    help="CUBE URL. Please exclude api version in the url endpoint."
+)
+parser.add_argument(
+    "--CUBEuser",
+    default="chris",
+    help="CUBE/ChRIS username"
+)
+parser.add_argument(
+    "--CUBEpassword",
+    default="chris1234",
+    help="CUBE/ChRIS password"
+)
 parser.add_argument('-V', '--version', action='version',
                     version=f'%(prog)s {__version__}')
 
@@ -89,8 +106,14 @@ def main(options: Namespace, inputdir: Path, outputdir: Path):
     directive = json.loads(options.PACSdirective)
     search_directive,_ = pfdcm.sanitize(directive)
 
-    search_response = pfdcm.get_pfdcm_status(search_directive, options.PACSurl, options.PACSname)
-    generated_response, file_count = pfdcm.autocomplete_directive(directive, search_response)
+    # generate a unique title based on timestamp
+    prefix = "pacs_query"
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    title =  f"{prefix}_{timestamp}"
+
+    # search_response = pfdcm.get_pfdcm_status(search_directive, options.PACSurl, options.PACSname)
+    search_response = cube_pacs_api.get_pacs_status(options.CUBEuser,options.CUBEpassword,title, search_directive,options.CUBEurl)
+    generated_response, file_count = cube_pacs_api.autocomplete_directive(directive, search_response)
 
     # LOG(pprint.pformat(search_response['pypx']['data']))
     LOG(pprint.pformat(generated_response))
