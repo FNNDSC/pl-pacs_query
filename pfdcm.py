@@ -4,6 +4,8 @@ import sys
 import copy
 from collections import ChainMap
 import json
+from requests.exceptions import RequestException, Timeout, HTTPError
+from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_exception_type
 
 LOG = logger.debug
 
@@ -35,6 +37,24 @@ allowed_tags = [
     "SeriesDate",
     "SeriesInstanceUID",
 ]
+# --------------------------
+# Retryable request handler
+# --------------------------
+@retry(
+    retry=retry_if_exception_type((RequestException, Timeout, HTTPError)),
+    wait=wait_exponential(multiplier=1, min=2, max=10),
+    stop=stop_after_attempt(5),
+    reraise=True
+)
+def make_request(self, method, endpoint, **kwargs):
+    url = f"{self.api_base}{endpoint}"
+    response = requests.request(method, url, headers=self.headers, auth=self.auth, timeout=5, **kwargs)
+    response.raise_for_status()
+
+    try:
+        return response.json()
+    except ValueError:
+        return response.text
 
 def health_check(url: str):
     pfdcm_about_api = f'{url}about/'

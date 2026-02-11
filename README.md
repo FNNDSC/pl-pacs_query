@@ -5,17 +5,48 @@
 [![ci](https://github.com/FNNDSC/pl-pacs_query/actions/workflows/ci.yml/badge.svg)](https://github.com/FNNDSC/pl-pacs_query/actions/workflows/ci.yml)
 
 `pl-pacs_query` is a [_ChRIS_](https://chrisproject.org/)
-_ds_ plugin which takes in ...  as input files and
-creates ... as output files.
+_ds_ plugin that queries a remote PACS using `pfdcm` and returns structured
+metadata describing available DICOM studies or series.  
+The query results are written to the output directory as JSON files for
+downstream processing.
 
 ## Abstract
 
-...
+Querying a PACS for available imaging data is a common prerequisite to
+retrieval and processing workflows.  
+`pl-pacs_query` enables automated PACS queries within a *ChRIS* pipeline
+by sending directives to a remote PACS via `pfdcm` and returning the
+resulting metadata.
+
+The plugin supports configurable PACS endpoints and directives, as well
+as authentication against a running *ChRIS / CUBE* instance.
 
 ## Installation
 
 `pl-pacs_query` is a _[ChRIS](https://chrisproject.org/) plugin_, meaning it can
 run from either within _ChRIS_ or the command-line.
+
+## Command-Line Arguments
+
+### Positional Arguments
+
+| Argument | Description |
+|--------|------------|
+| `inputdir` | Directory containing input files (read-only). May be empty. |
+| `outputdir` | Directory where query results will be written. |
+
+### Optional Arguments
+
+| Option | Default | Description |
+|------|---------|-------------|
+| `--PACSurl` | `""` | Endpoint URL of the `pfdcm` service used to communicate with the PACS. |
+| `--PACSname` | `MINICHRISORTHANC` | Name of the PACS to query. |
+| `--PACSdirective` | `""` | Directive string used to query the PACS (e.g., study- or series-level query). |
+| `--CUBEurl` | `http://localhost:8000/` | URL of the CUBE/ChRIS instance (exclude API version). |
+| `--CUBEuser` | `chris` | Username for authenticating with CUBE/ChRIS. |
+| `--CUBEpassword` | `chris1234` | Password for authenticating with CUBE/ChRIS. |
+
+---
 
 ## Local Usage
 
