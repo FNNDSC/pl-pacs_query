@@ -119,7 +119,7 @@ def autocomplete_directive(directive: dict, d_response: dict) -> (list,int):
     Autocomplete certain fields in the search directive using response
     object from pfdcm
     """
-    search_directive,partial_directive = sanitize(directive)
+    search_directive,_ = sanitize(directive)
     file_count = 0
     res: list = []
 
@@ -134,8 +134,8 @@ def autocomplete_directive(directive: dict, d_response: dict) -> (list,int):
             # iteratively check for all search fields and update the search record simultaneously
             # with SeriesInstanceUID and StudyInstanceUID
             flag = True
-            for key in directive.keys():
-                if series.get(key) and directive[key].lower() in series[key]["value"].lower():
+            for key in search_directive.keys():
+                if series.get(key) and search_directive[key].lower() in series[key]["value"].lower():
                     flag = flag and True
                 else:
                     flag = flag and False
