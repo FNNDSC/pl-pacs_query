@@ -1,9 +1,10 @@
 import requests
-from loguru import logger
+import fnmatch
 import sys
 import copy
-from collections import ChainMap
 import json
+from collections import ChainMap
+from loguru import logger
 from requests.exceptions import RequestException, Timeout, HTTPError
 from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_exception_type
 
@@ -36,6 +37,11 @@ allowed_tags = [
     "InstanceNumber",
     "SeriesDate",
     "SeriesInstanceUID",
+
+]
+filter_tags = [
+    "SeriesDescription",
+    "StudyDescription",
 ]
 # --------------------------
 # Retryable request handler
@@ -74,7 +80,7 @@ def sanitize(directive: dict) -> (dict, dict):
     partial_directive = []
     clone_directive = copy.deepcopy(directive)
     for key in directive.keys():
-        if not key in allowed_tags:
+        if not key in allowed_tags and key in filter_tags:
             partial_directive.append({key:clone_directive.pop(key)})
     return clone_directive, dict(ChainMap(*partial_directive))
 
@@ -109,6 +115,8 @@ def get_pfdcm_status(directive: dict, url: str, pacs_name: str):
     try:
         response = requests.post(pfdcm_status_url, json=body, headers=headers, timeout=1000)
         d_response = json.loads(response.text)
+        # print json to screen with human-friendly formatting
+        # pprint.pprint(d_response, compact=True)
         if d_response['status']: return d_response
         else: raise Exception(d_response['message'])
     except Exception as ex:
@@ -119,7 +127,7 @@ def autocomplete_directive(directive: dict, d_response: dict) -> (list,int):
     Autocomplete certain fields in the search directive using response
     object from pfdcm
     """
-    search_directive,_ = sanitize(directive)
+    search_directive,filter_directive = sanitize(directive)
     file_count = 0
     res: list = []
 
@@ -131,11 +139,15 @@ def autocomplete_directive(directive: dict, d_response: dict) -> (list,int):
         for series in l_series["series"]:
             ser = {}
 
+            # Add post fetch filtering logic
             # iteratively check for all search fields and update the search record simultaneously
             # with SeriesInstanceUID and StudyInstanceUID
             flag = True
-            for key in search_directive.keys():
-                if series.get(key) and search_directive[key].lower() in series[key]["value"].lower():
+            for key in filter_directive.keys():
+                if series.get(key) and fnmatch.fnmatch( # Supports shell-style wildcards [*,?]
+                                                        series[key]["value"].lower(),
+                                                        filter_directive[key].lower()
+                                                       ):
                     flag = flag and True
                 else:
                     flag = flag and False
