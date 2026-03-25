@@ -4,6 +4,7 @@ from pathlib import Path
 from argparse import ArgumentParser, Namespace, ArgumentDefaultsHelpFormatter
 from loguru import logger
 from chris_plugin import chris_plugin, PathMapper
+import hashlib
 import pfdcm
 import json
 import sys
@@ -24,7 +25,7 @@ logger_format = (
 )
 logger.remove()
 logger.add(sys.stderr, format=logger_format)
-__version__ = '1.0.8'
+__version__ = '1.0.9'
 
 DISPLAY_TITLE = r"""
        _                                                          
@@ -74,6 +75,11 @@ parser.add_argument(
     default="chris1234",
     help="CUBE/ChRIS password"
 )
+parser.add_argument(
+    "--reportName",
+    default="",
+    help="name of the output report containing search results (excluding file extension)"
+)
 parser.add_argument('-V', '--version', action='version',
                     version=f'%(prog)s {__version__}')
 
@@ -118,11 +124,22 @@ def main(options: Namespace, inputdir: Path, outputdir: Path):
 
     LOG(pprint.pformat(generated_response))
     LOG(f"file count is : {file_count}")
-    op_json_file_path  = os.path.join(options.outputdir,"search_results.json")
+    op_json_file_path  = os.path.join(options.outputdir,f"search_results_{dict_to_hash(generated_response)}.json")
+    if options.reportName:
+        op_json_file_path = os.path.join(options.outputdir,f"{options.reportName}.json")
+    LOG(op_json_file_path)
     # Open a json writer, and use the json.dumps()
     # function to dump data
     with open(op_json_file_path, 'w', encoding='utf-8') as jsonf:
         jsonf.write(json.dumps(generated_response, indent=4))
+
+def dict_to_hash(data: dict) -> str:
+    # Convert dict to a JSON string with sorted keys for consistency
+    data_str = json.dumps(data, sort_keys=True)
+    # Encode to bytes
+    hash_request = hashlib.md5(data_str.encode('utf-8'))
+    # Return the hex digest
+    return hash_request.hexdigest()
 
 
 if __name__ == '__main__':
