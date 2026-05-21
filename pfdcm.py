@@ -135,8 +135,9 @@ def autocomplete_directive(directive: dict, d_response: dict) -> (list,int):
     # we will be using this count to verify file registration
     # in CUBE
 
-    for l_series in d_response['pypx']['data']:
-        for series in l_series["series"]:
+    for series in d_response:
+        #for series in l_series:
+
             ser = {}
 
             # Add post fetch filtering logic
@@ -145,7 +146,7 @@ def autocomplete_directive(directive: dict, d_response: dict) -> (list,int):
             flag = True
             for key in filter_directive.keys():
                 if series.get(key) and fnmatch.fnmatch( # Supports shell-style wildcards [*,?]
-                                                        series[key]["value"].lower(),
+                                                        series[key].lower(),
                                                         filter_directive[key].lower()
                                                        ):
                     flag = flag and True
@@ -153,9 +154,9 @@ def autocomplete_directive(directive: dict, d_response: dict) -> (list,int):
                     flag = flag and False
             if flag:
                 for label in series:
-                    ser[label] = series[label]["value"]
+                    ser[label] = series[label]
                 res.append(ser)
-                file_count += int(series["NumberOfSeriesRelatedInstances"]["value"])
+                file_count += int(series["NumberOfSeriesRelatedInstances"])
             else:
                 continue
 
