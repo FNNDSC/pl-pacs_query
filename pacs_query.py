@@ -106,7 +106,7 @@ def main(options: Namespace, inputdir: Path, outputdir: Path):
 
     LOG(DISPLAY_TITLE)
     directive = json.loads(options.PACSdirective)
-    search_directive,_ = pfdcm.sanitize(directive)
+    search_directive, _ = pfdcm.sanitize(directive)
 
     # The following snippet is for submitting a PACS query using CUBE PACS API endpoints
 
@@ -122,20 +122,36 @@ def main(options: Namespace, inputdir: Path, outputdir: Path):
 
     LOG(pprint.pformat(generated_response))
     LOG(f"file count is : {file_count}")
-    op_json_file_path  = os.path.join(options.outputdir,f"search_results_{dict_to_hash(generated_response)}.json")
+    op_json_file_path = os.path.join(options.outputdir, f"search_results_{dict_to_hash(generated_response)}.json")
     if options.reportName:
-        op_json_file_path = os.path.join(options.outputdir,f"{options.reportName}.json")
+        op_json_file_path = os.path.join(options.outputdir, f"{options.reportName}.json")
     LOG(op_json_file_path)
     # Open a json writer, and use the json.dumps()
     # function to dump data
     with open(op_json_file_path, 'w', encoding='utf-8') as jsonf:
         jsonf.write(json.dumps(generated_response, indent=4))
 
+
 # ---------------------------------------------------------------------------
 # C-FIND
 # ---------------------------------------------------------------------------
 def cfind(args, search_dataset) -> dict:
-    """Query the PACS and return a list of matching study-level datasets."""
+    """Query the PACS and return a list of matching series-level datasets.
+
+    FIX: this SCP (like most that don't negotiate DICOM "relational queries")
+    only supports *hierarchical* C-FIND: a query at SERIES level must be scoped
+    by an exact parent StudyInstanceUID. Sending PatientID/StudyDate alone at the
+    SERIES level (with StudyInstanceUID blank) asks for "every series across every
+    matching study" -- unscoped enough that the SCP refuses it with 0xA700, just
+    like the STUDY-level query did before it had real matching keys.
+
+    So this now runs two passes:
+      1. STUDY-level C-FIND using the caller's search_dataset -> get matching
+         studies, each with a StudyInstanceUID.
+      2. SERIES-level C-FIND per study, scoped by that StudyInstanceUID -> get the
+         series-level records (with NumberOfSeriesRelatedInstances) that
+         pfdcm.autocomplete_directive() actually needs.
+    """
     ae = AE(ae_title=args.dst_aet)
 
     # Try Study-root first, fall back to Patient-root
@@ -145,12 +161,12 @@ def cfind(args, search_dataset) -> dict:
         else PatientRootQueryRetrieveInformationModelFind
     )
     ae.add_requested_context(find_model)
-    identifier = DICOMIdentifierBuilder.build_identifier(search_dataset,"SERIES")
 
-
+    # FIX: logger doesn't do %-style lazy interpolation like stdlib logging.Logger does,
+    # so the old "%s:%d ... %s", arg1, arg2, arg3 form silently drops the args and prints
+    # the raw placeholders. Use f-strings so the values are actually rendered.
     logger.info(
-        "C-FIND → %s:%d  (src-AET: %s)",
-        args.src_ip, args.src_port, args.src_aet,
+        f"C-FIND → {args.src_ip}:{args.src_port}  (src-AET: {args.src_aet})"
     )
 
     assoc = ae.associate(args.src_ip, args.src_port, ae_title=args.src_aet)
@@ -160,23 +176,69 @@ def cfind(args, search_dataset) -> dict:
 
     results = []
     try:
-        responses = assoc.send_c_find(identifier, find_model)
-        for status, dataset in responses:
+        # ---------------- Pass 1: STUDY level ----------------
+        study_identifier = DICOMIdentifierBuilder.build_identifier(search_dataset, "STUDY")
+        logger.debug(f"C-FIND (STUDY) identifier being sent:\n{study_identifier}")
+
+        studies = []
+        study_responses = assoc.send_c_find(study_identifier, find_model)
+        for status, dataset in study_responses:
             if status and status.Status in (0xFF00, 0xFF01):  # Pending
                 if dataset:
-                    # Convert with sequence support and readable tag names
-                    results.append(dataset_to_dict(dataset))
+                    studies.append(dataset)
             elif status and status.Status == 0x0000:
-                logger.info("C-FIND complete — %d studies found", len(results))
+                logger.info(f"STUDY C-FIND complete — {len(studies)} studies found")
             else:
-                logger.warning("C-FIND unexpected status: 0x%04X", status.Status if status else -1)
+                _log_cfind_failure(status, dataset)
+
+        # ---------------- Pass 2: SERIES level, per study ----------------
+        for study_ds in studies:
+            study_uid = getattr(study_ds, "StudyInstanceUID", None)
+            if not study_uid:
+                logger.warning("Study result missing StudyInstanceUID, skipping series lookup")
+                continue
+
+            series_identifier = DICOMIdentifierBuilder.build_identifier(
+                {"StudyInstanceUID": study_uid}, "SERIES"
+            )
+            logger.debug(f"C-FIND (SERIES) identifier being sent:\n{series_identifier}")
+
+            series_responses = assoc.send_c_find(series_identifier, find_model)
+            series_count = 0
+            for status, dataset in series_responses:
+                if status and status.Status in (0xFF00, 0xFF01):  # Pending
+                    if dataset:
+                        results.append(dataset_to_dict(dataset))
+                        series_count += 1
+                elif status and status.Status == 0x0000:
+                    logger.info(
+                        f"SERIES C-FIND complete for study {study_uid} — {series_count} series found"
+                    )
+                else:
+                    _log_cfind_failure(status, dataset)
     finally:
         assoc.release()
 
-    #return results
     # Convert to JSON
     results_json = json.dumps(results, indent=2)
     return json.loads(results_json)
+
+
+def _log_cfind_failure(status, dataset):
+    """Log a non-success C-FIND status, including any SCP-provided ErrorComment."""
+    status_code = status.Status if status else -1
+    logger.warning(f"C-FIND unexpected status: 0x{status_code:04X}")
+
+    # FIX: on refusal/failure statuses, the SCP often includes an (0000,0902)
+    # ErrorComment (and sometimes OffendingElement) in the response explaining why --
+    # e.g. AE title not registered/authorized, unsupported matching key, missing
+    # parent unique key, etc. We were discarding that dataset entirely and only
+    # looking at the bare status code.
+    error_comment = getattr(dataset, "ErrorComment", None) if dataset else None
+    if error_comment:
+        logger.warning(f"C-FIND SCP error comment: {error_comment}")
+    if dataset:
+        logger.debug(f"C-FIND failure response dataset:\n{dataset}")
 
 
 def dataset_to_dict(dataset, include_tags=False):

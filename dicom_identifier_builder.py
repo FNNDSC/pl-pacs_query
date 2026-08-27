@@ -5,6 +5,7 @@ Converts JSON configuration to pynetdicom Dataset objects
 
 import json
 from pydicom.dataset import Dataset
+from pydicom.sequence import Sequence
 from typing import Dict, Any, Optional
 
 
@@ -45,7 +46,12 @@ class DICOMIdentifierBuilder:
         'Modality',
         'PerformingPhysicianName',
         'NumberOfSeriesRelatedInstances',
-        'AnatomicalRegionSequence'
+        # FIX: real DICOM keyword for tag (0008,2218) is "AnatomicRegionSequence"
+        # (no "al"). The misspelled version isn't recognized by pydicom, so setattr()
+        # silently created a plain Python attribute instead of a DICOM element -- it
+        # was never actually included in the identifier sent to the SCP. Correcting
+        # the keyword makes this field real (and stops the recurring pydicom warning).
+        'AnatomicRegionSequence'
     }
 
     IMAGE_LEVEL_FIELDS = {
@@ -57,6 +63,16 @@ class DICOMIdentifierBuilder:
         'Rows',
         'Columns',
         'BitsAllocated'
+    }
+
+    # FIX: fields whose DICOM VR is SQ (Sequence). These can NEVER be assigned a plain
+    # string like "" — pydicom needs a Sequence of Dataset objects. Assigning "" produces
+    # a malformed identifier, which is what was triggering the pydicom "camel case
+    # attribute not in keyword dictionary" warning and causing the SCP to refuse the
+    # whole C-FIND with status 0xA700 (Out of Resources) instead of just returning zero
+    # matches.
+    SEQUENCE_FIELDS = {
+        'AnatomicRegionSequence',
     }
 
     @staticmethod
@@ -96,15 +112,35 @@ class DICOMIdentifierBuilder:
         identifier = Dataset()
         identifier.QueryRetrieveLevel = query_level
 
-        # Get appropriate field list for query level
+        # Get appropriate field list for query level.
+        # FIX: per the DICOM Study Root Q/R model, matching keys are hierarchical --
+        # a query at SERIES level can (and should) still carry Patient- and Study-level
+        # attributes (PatientID, StudyDate, AccessionNumber, etc.) as additional
+        # matching keys, not just SERIES-specific fields. The previous flat, per-level
+        # whitelist silently dropped those higher-level identifying keys whenever
+        # query_level was "SERIES", producing an effectively unconstrained query that
+        # the SCP refused with 0xA700 (Out of Resources). Union the field sets by
+        # hierarchy instead of treating each level's fields as mutually exclusive.
         if query_level == "PATIENT":
             allowed_fields = DICOMIdentifierBuilder.PATIENT_LEVEL_FIELDS
         elif query_level == "STUDY":
-            allowed_fields = DICOMIdentifierBuilder.STUDY_LEVEL_FIELDS
+            allowed_fields = (
+                DICOMIdentifierBuilder.PATIENT_LEVEL_FIELDS
+                | DICOMIdentifierBuilder.STUDY_LEVEL_FIELDS
+            )
         elif query_level == "SERIES":
-            allowed_fields = DICOMIdentifierBuilder.SERIES_LEVEL_FIELDS
+            allowed_fields = (
+                DICOMIdentifierBuilder.PATIENT_LEVEL_FIELDS
+                | DICOMIdentifierBuilder.STUDY_LEVEL_FIELDS
+                | DICOMIdentifierBuilder.SERIES_LEVEL_FIELDS
+            )
         elif query_level == "IMAGE":
-            allowed_fields = DICOMIdentifierBuilder.IMAGE_LEVEL_FIELDS
+            allowed_fields = (
+                DICOMIdentifierBuilder.PATIENT_LEVEL_FIELDS
+                | DICOMIdentifierBuilder.STUDY_LEVEL_FIELDS
+                | DICOMIdentifierBuilder.SERIES_LEVEL_FIELDS
+                | DICOMIdentifierBuilder.IMAGE_LEVEL_FIELDS
+            )
         else:
             raise ValueError(f"Invalid query level: {query_level}")
 
@@ -119,15 +155,66 @@ class DICOMIdentifierBuilder:
 
         # Add fields from JSON config
         for field in allowed_fields:
+            is_sequence_field = field in DICOMIdentifierBuilder.SEQUENCE_FIELDS
+
             if field in json_config:
                 value = json_config[field]
-                # Set field, converting None to empty string
-                setattr(identifier, field, value if value is not None else "")
+
+                if is_sequence_field:
+                    # FIX: build a proper Sequence of Datasets instead of assigning
+                    # a raw string/dict. Accepts: None/[] -> empty Sequence (universal
+                    # matching), a single dict -> one-item Sequence, or a list of dicts
+                    # -> multi-item Sequence.
+                    setattr(identifier, field, DICOMIdentifierBuilder._to_sequence(value))
+                else:
+                    # Set field, converting None to empty string
+                    setattr(identifier, field, value if value is not None else "")
+
             elif empty_optional:
-                # Include optional fields as empty strings
-                setattr(identifier, field, "")
+                if is_sequence_field:
+                    # FIX: empty Sequence, not empty string, for universal matching
+                    # on a Sequence-VR element.
+                    setattr(identifier, field, Sequence())
+                else:
+                    # Include optional fields as empty strings
+                    setattr(identifier, field, "")
 
         return identifier
+
+    @staticmethod
+    def _to_sequence(value: Any) -> Sequence:
+        """
+        Normalize a JSON value into a pydicom Sequence for an SQ-VR element.
+
+        Args:
+            value: None, a dict (single item), or a list of dicts (multiple items).
+                   Each dict maps DICOM keywords to values for that sequence item.
+
+        Returns:
+            Sequence: a pydicom Sequence containing zero or more Datasets.
+        """
+        if value is None:
+            return Sequence()
+
+        if isinstance(value, dict):
+            items = [value]
+        elif isinstance(value, list):
+            items = value
+        else:
+            # Defensive fallback: an unexpected scalar (e.g. "") for a sequence field.
+            # Treat it as "no constraint" rather than producing an invalid element.
+            return Sequence()
+
+        datasets = []
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            ds = Dataset()
+            for key, val in item.items():
+                setattr(ds, key, val if val is not None else "")
+            datasets.append(ds)
+
+        return Sequence(datasets)
 
     @staticmethod
     def build_identifier_from_json_file(
