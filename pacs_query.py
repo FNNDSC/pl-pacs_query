@@ -103,34 +103,57 @@ def main(options: Namespace, inputdir: Path, outputdir: Path):
     :param inputdir: directory containing (read-only) input files
     :param outputdir: directory where to write output files
     """
+    run(options, inputdir, outputdir)
 
+
+def run(options: Namespace, inputdir: Path, outputdir: Path):
     LOG(DISPLAY_TITLE)
+
     directive = json.loads(options.PACSdirective)
-    search_directive, _ = pfdcm.sanitize(directive)
 
-    # The following snippet is for submitting a PACS query using CUBE PACS API endpoints
+    search_directive, _ = pfdcm.sanitize(
+        directive
+    )
 
-    # generate a unique title based on timestamp
-    # prefix = "pacs_query"
-    # timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    # title =  f"{prefix}_{timestamp}"
-    # search_response = cube_pacs_api.get_pacs_status(options.CUBEuser,options.CUBEpassword,title, search_directive,options.CUBEurl)
+    search_response = cfind(
+        options,
+        search_directive,
+    )
 
-    # search_response = pfdcm.get_pfdcm_status(search_directive, options.PACSurl, options.PACSname)
-    search_response = cfind(options, search_directive)
-    generated_response, file_count = pfdcm.autocomplete_directive(directive, search_response)
+    generated_response, file_count = (
+        pfdcm.autocomplete_directive(
+            directive,
+            search_response,
+        )
+    )
 
     LOG(pprint.pformat(generated_response))
     LOG(f"file count is : {file_count}")
-    op_json_file_path = os.path.join(options.outputdir, f"search_results_{dict_to_hash(generated_response)}.json")
-    if options.reportName:
-        op_json_file_path = os.path.join(options.outputdir, f"{options.reportName}.json")
-    LOG(op_json_file_path)
-    # Open a json writer, and use the json.dumps()
-    # function to dump data
-    with open(op_json_file_path, 'w', encoding='utf-8') as jsonf:
-        jsonf.write(json.dumps(generated_response, indent=4))
 
+    op_json_file_path = os.path.join(
+        options.outputdir,
+        f"search_results_{dict_to_hash(generated_response)}.json",
+    )
+
+    if options.reportName:
+        op_json_file_path = os.path.join(
+            options.outputdir,
+            f"{options.reportName}.json",
+        )
+
+    LOG(op_json_file_path)
+
+    with open(
+        op_json_file_path,
+        "w",
+        encoding="utf-8",
+    ) as jsonf:
+        jsonf.write(
+            json.dumps(
+                generated_response,
+                indent=4,
+            )
+        )
 
 # ---------------------------------------------------------------------------
 # C-FIND
