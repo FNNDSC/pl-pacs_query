@@ -252,6 +252,7 @@ After a successful query:
 ```text
 outgoing/
 └── search_results.json
+```
 
 > **Note:** The PACS must be reachable from inside the container. The calling
 > AE Title supplied with `--dst-aet` may also need to be registered or
