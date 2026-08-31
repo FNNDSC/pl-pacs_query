@@ -96,10 +96,6 @@ def main(options: Namespace, inputdir: Path, outputdir: Path):
     :param inputdir: directory containing (read-only) input files
     :param outputdir: directory where to write output files
     """
-    run(options, inputdir, outputdir)
-
-
-def run(options: Namespace, inputdir: Path, outputdir: Path):
     LOG(DISPLAY_TITLE)
 
     directive = json.loads(options.PACSdirective)

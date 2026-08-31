@@ -1,6 +1,6 @@
 import json
 
-from pacs_query import run
+from pacs_query import main
 
 
 def test_run_creates_report(
@@ -36,7 +36,7 @@ def test_run_creates_report(
 
     default_options.outputdir = str(tmp_path)
 
-    run(
+    main(
         default_options,
         tmp_path,
         tmp_path,
