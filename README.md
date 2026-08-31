@@ -35,17 +35,36 @@ run from either within _ChRIS_ or the command-line.
 | `inputdir` | Directory containing input files (read-only). May be empty. |
 | `outputdir` | Directory where query results will be written. |
 
-### Optional Arguments
+### PACS Connection Arguments
+
+| Option | Required | Description |
+|---|---|---|
+| `--src-aet` | Yes | Called AE Title of the remote PACS. |
+| `--src-ip` | Yes | Hostname or IP address of the remote PACS. |
+| `--src-port` | Yes | DICOM port of the remote PACS. |
+| `--dst-aet` | Yes | Calling AE Title used by `pl-pacs_query`. This AE Title generally must be known/authorized by the PACS. |
+
+### Query Arguments
 
 | Option | Default | Description |
-|------|---------|-------------|
-| `--PACSurl` | `""` | Endpoint URL of the `pfdcm` service used to communicate with the PACS. |
-| `--PACSname` | `MINICHRISORTHANC` | Name of the PACS to query. |
-| `--PACSdirective` | `""` | Directive string used to query the PACS (e.g., study- or series-level query). |
-| `--CUBEurl` | `http://localhost:8000/` | URL of the CUBE/ChRIS instance (exclude API version). |
-| `--CUBEuser` | `chris` | Username for authenticating with CUBE/ChRIS. |
-| `--CUBEpassword` | `chris1234` | Password for authenticating with CUBE/ChRIS. |
+|---|---|---|
+| `--PACSdirective` | `""` | JSON string containing the PACS query criteria. |
+| `--reportName` | `""` | Name of the output report without the `.json` extension. If omitted, a deterministic hash-based report name is generated. |
+| `--query-model` | `study` | DICOM Query/Retrieve information model. Supported values are `study` and `patient`. |
+| `-V`, `--version` | — | Print the plugin version and exit. |
 
+## PACS Directive
+
+`--PACSdirective` accepts a JSON object describing the PACS query.
+
+For example:
+
+```json
+{
+    "PatientID": "TEST",
+    "StudyDate": "20251027"
+}
+```
 ---
 
 ## Local Usage
