@@ -11,17 +11,10 @@ import sys
 import pprint
 import os
 from dicom_identifier_builder import DICOMIdentifierBuilder
-from pynetdicom import (
-    AE,
-    StoragePresentationContexts,
-    build_role,
-    evt,
-)
+from pynetdicom import AE
 from pynetdicom.sop_class import (
     PatientRootQueryRetrieveInformationModelFind,
-    PatientRootQueryRetrieveInformationModelMove,
     StudyRootQueryRetrieveInformationModelFind,
-    StudyRootQueryRetrieveInformationModelMove,
 )
 from pydicom.dataset import Dataset
 from pydicom.datadict import keyword_for_tag

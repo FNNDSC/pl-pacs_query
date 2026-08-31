@@ -6,7 +6,7 @@ Converts JSON configuration to pynetdicom Dataset objects
 import json
 from pydicom.dataset import Dataset
 from pydicom.sequence import Sequence
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 
 
 class DICOMIdentifierBuilder:

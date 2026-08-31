@@ -1,5 +1,3 @@
-from pydicom.dataset import Dataset
-
 from pacs_query import cfind
 
 
